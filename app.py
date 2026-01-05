@@ -298,11 +298,6 @@ def index():
 
     return render_template_string(HTML, car=car, explanation=explanation)
 
-if __name__ == "__main__":
-    init_db()
-    app.run(debug=True)
-
-
 import webbrowser
 
 import os
