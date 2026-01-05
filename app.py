@@ -1,157 +1,194 @@
-import os
 import sqlite3
 from flask import Flask, request, render_template_string
+import os
 
 app = Flask(__name__)
-DB_PATH = "cars.db"
+DB_NAME = "cars.db"
 
 
-# ---------- DB ----------
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
+# -------------------- DATABASE --------------------
 def init_db():
-    conn = get_db()
+    conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
 
     c.execute("""
-        CREATE TABLE IF NOT EXISTS cars (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            brand TEXT,
-            model TEXT,
-            price INTEGER,
-            battery INTEGER,
-            range_km INTEGER,
-            charge_time INTEGER,
-            multimedia INTEGER,
-            seat_comfort INTEGER,
-            regen INTEGER,
-            interior_quality INTEGER
-        )
-        """)
+    CREATE TABLE IF NOT EXISTS cars (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        price INTEGER,
+        range_km INTEGER,
+        charge_time INTEGER,
+        pedal INTEGER,
+        regen INTEGER,
+        comfort INTEGER,
+        multimedia INTEGER,
+        seat INTEGER,
+        material INTEGER
+    )
+    """)
 
     c.execute("SELECT COUNT(*) FROM cars")
     if c.fetchone()[0] == 0:
         cars = [
-            # TESLA
-            ("Tesla", "Model 3 SR", 1600000, 60, 510, 25, 9, 8, 9, 8),
-            ("Tesla", "Model 3 LR", 1850000, 75, 602, 27, 9, 8, 9, 8),
-            ("Tesla", "Model Y SR", 1650000, 60, 455, 27, 9, 8, 9, 8),
-            ("Tesla", "Model Y LR", 1900000, 75, 533, 30, 9, 8, 9, 8),
-
-            # TOGG
-            ("Togg", "T10X V1", 1500000, 52, 314, 28, 7, 8, 8, 7),
-            ("Togg", "T10X V2", 1800000, 88, 523, 32, 7, 8, 8, 7),
-
-            # BMW
-            ("BMW", "iX1", 1750000, 64, 440, 29, 8, 9, 7, 9),
-            ("BMW", "i4 eDrive40", 2500000, 84, 590, 31, 9, 9, 8, 9),
-            ("BMW", "iX", 3500000, 111, 630, 35, 9, 9, 8, 10),
-
-            # MERCEDES
-            ("Mercedes", "EQA 250", 1800000, 66, 426, 30, 9, 9, 7, 9),
-            ("Mercedes", "EQB 250", 1900000, 66, 423, 30, 9, 9, 7, 9),
-            ("Mercedes", "EQE", 3200000, 90, 639, 32, 10, 9, 8, 10),
-            ("Mercedes", "EQS", 4500000, 108, 770, 36, 10, 10, 8, 10),
-
-            # HYUNDAI
-            ("Hyundai", "Kona Electric", 1400000, 64, 484, 30, 7, 7, 6, 7),
-            ("Hyundai", "Ioniq 5", 1650000, 72, 507, 28, 8, 8, 7, 8),
-            ("Hyundai", "Ioniq 6", 1750000, 77, 614, 28, 8, 8, 7, 8),
-
-            # KIA
-            ("Kia", "Niro EV", 1450000, 64, 460, 30, 7, 7, 6, 7),
-            ("Kia", "EV6", 1850000, 77, 528, 28, 8, 8, 7, 8),
-
-            # VOLKSWAGEN
-            ("Volkswagen", "ID.3", 1550000, 58, 426, 29, 7, 7, 6, 7),
-            ("Volkswagen", "ID.4", 1700000, 77, 520, 31, 7, 8, 6, 8),
-            ("Volkswagen", "ID. Buzz", 2300000, 77, 423, 32, 8, 8, 6, 8),
-
-            # AUDI
-            ("Audi", "Q4 e-tron", 2000000, 77, 520, 31, 9, 9, 7, 9),
-            ("Audi", "e-tron GT", 4200000, 93, 488, 34, 10, 9, 8, 10),
-
-            # PEUGEOT / OPEL
-            ("Peugeot", "e-208", 1250000, 50, 400, 27, 6, 6, 5, 6),
-            ("Opel", "Corsa-e", 1200000, 50, 395, 27, 6, 6, 5, 6),
-            ("Opel", "Mokka-e", 1350000, 50, 403, 28, 6, 6, 5, 6),
-
-            # RENAULT
-            ("Renault", "Megane E-Tech", 1550000, 60, 470, 29, 7, 7, 6, 7),
-
-            # MINI / FIAT
-            ("Mini", "Cooper SE", 1500000, 32, 234, 22, 7, 6, 6, 7),
-            ("Fiat", "500e", 1100000, 42, 320, 24, 6, 5, 5, 6)
+            ("Tesla Model 3", 1600000, 510, 30, 9, 9, 8, 9, 8, 8),
+            ("Tesla Model Y", 1900000, 530, 32, 9, 8, 9, 9, 9, 8),
+            ("Togg T10X", 1450000, 523, 28, 7, 7, 8, 8, 8, 7),
+            ("BMW i4", 2500000, 590, 35, 8, 8, 9, 9, 9, 9),
+            ("Mercedes EQE", 3000000, 550, 40, 7, 7, 9, 9, 9, 9),
+            ("Hyundai Kona EV", 1400000, 484, 45, 7, 7, 7, 7, 7, 7),
+            ("Kia EV6", 1800000, 528, 38, 8, 8, 8, 8, 8, 8)
         ]
 
         c.executemany("""
-            INSERT INTO cars
-            (brand, model, price, battery, range_km, charge_time,
-             multimedia, seat_comfort, regen, interior_quality)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, cars)
+        INSERT INTO cars
+        (name, price, range_km, charge_time, pedal, regen, comfort, multimedia, seat, material)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, cars)
 
     conn.commit()
     conn.close()
 
 
-init_db()
+# -------------------- SCORING --------------------
+def score(car, user):
+    score = 0
+    explanations = []
+
+    def closeness(label, car_val, user_val):
+        diff = abs(car_val - user_val)
+        if diff <= 1:
+            return f"• {label}: beklentine çok yakın."
+        elif diff <= 3:
+            return f"• {label}: beklentine yakın."
+        else:
+            return f"• {label}: beklentinden uzak."
+
+    explanations.append(closeness("Gaz pedal hassasiyeti", car["pedal"], user["pedal"]))
+    explanations.append(closeness("Rejenerasyon seviyesi", car["regen"], user["regen"]))
+    explanations.append(closeness("Sürüş konforu", car["comfort"], user["comfort"]))
+    explanations.append(closeness("Multimedya seviyesi", car["multimedia"], user["multimedia"]))
+    explanations.append(closeness("Koltuk rahatlığı", car["seat"], user["seat"]))
+    explanations.append(closeness("İç malzeme kalitesi", car["material"], user["material"]))
+
+    if car["price"] <= user["price"] and car["range_km"] >= user["range"]:
+        explanations.append(
+            f"• Fiyat ({car['price']} TL) ve menzil ({car['range_km']} km) kriterlerinle uyumlu."
+        )
+
+    score += max(0, user["price"] - car["price"]) / 10000
+    score += max(0, car["range_km"] - user["range"])
+    score += sum(10 - abs(car[k] - user[k]) for k in ["pedal", "regen", "comfort", "multimedia", "seat", "material"])
+
+    return score, explanations
 
 
-# ---------- ROUTE ----------
+# -------------------- ROUTE --------------------
 @app.route("/", methods=["GET", "POST"])
 def index():
-    cars = []
-    if request.method == "POST":
-        max_price = int(request.form["price"])
-        min_range = int(request.form["range"])
+    result = None
 
-        conn = get_db()
+    if request.method == "POST":
+        user = {
+            "price": int(request.form["price"]),
+            "range": int(request.form["range"]),
+            "charge": int(request.form["charge"]),
+            "pedal": int(request.form["pedal"]),
+            "regen": int(request.form["regen"]),
+            "comfort": int(request.form["comfort"]),
+            "multimedia": int(request.form["multimedia"]),
+            "seat": int(request.form["seat"]),
+            "material": int(request.form["material"])
+        }
+
+        conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
-        c.execute("""
-            SELECT * FROM cars
-            WHERE price <= ?
-            AND range_km >= ?
-            ORDER BY
-            (multimedia + seat_comfort + regen + interior_quality) DESC
-            """, (max_price, min_range))
-        cars = c.fetchall()
+        c.execute("SELECT * FROM cars")
+        rows = c.fetchall()
         conn.close()
 
-    return render_template_string("""
-        <h2>Araç Öneri Sistemi</h2>
+        cars = []
+        for r in rows:
+            cars.append({
+                "name": r[1], "price": r[2], "range_km": r[3], "charge_time": r[4],
+                "pedal": r[5], "regen": r[6], "comfort": r[7],
+                "multimedia": r[8], "seat": r[9], "material": r[10]
+            })
 
-        <form method="post">
-            Max Fiyat (TL):
-            <input type="number" name="price" value="1600000"><br><br>
-            Min Menzil (km):
-            <input type="number" name="range" value="500"><br><br>
-            <button type="submit">Araç Öner</button>
-        </form>
+        best = None
+        best_score = -1
+        best_exp = []
 
-        <hr>
+        for car in cars:
+            s, e = score(car, user)
+            if s > best_score:
+                best_score = s
+                best = car
+                best_exp = e
 
-        {% for c in cars %}
-        <b>{{ c.brand }} {{ c.model }}</b>
-        <ul>
-            <li>Fiyat: {{ c.price }} TL</li>
-            <li>Batarya: {{ c.battery }} kWh</li>
-            <li>Menzil: {{ c.range_km }} km</li>
-            <li>Şarj süresi: {{ c.charge_time }} dk</li>
-            <li>Multimedya: {{ c.multimedia }}/10</li>
-            <li>Koltuk rahatlığı: {{ c.seat_comfort }}/10</li>
-            <li>Rejenerasyon: {{ c.regen }}/10</li>
-            <li>İç malzeme kalitesi: {{ c.interior_quality }}/10</li>
-        </ul>
-        <hr>
-        {% endfor %}
-        """, cars=cars)
+        result = {"car": best, "exp": best_exp}
+
+    return render_template_string(HTML, result=result)
 
 
+# -------------------- HTML --------------------
+HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+<title>Elektrikli Araç Öneri Sistemi</title>
+<style>
+body { font-family: Arial; max-width: 800px; margin: auto; }
+label { display:block; margin-top:15px; }
+</style>
+</head>
+<body>
+
+<h2>Elektrikli Araç Öneri Sistemi</h2>
+
+<form method="POST">
+<label>Max Fiyat (TL)</label>
+<input type="number" name="price" required>
+
+<label>Minimum Menzil (km)</label>
+<input type="number" name="range" required>
+
+<label>Şarj Süresi (dk, 1–60+)</label>
+<input type="range" name="charge" min="1" max="60" value="30"
+oninput="this.nextElementSibling.value=this.value"><output>30</output>
+
+{% for name,label in [
+("pedal","Gaz Pedal Hassasiyeti"),
+("regen","Rejenerasyon Seviyesi"),
+("comfort","Sürüş Konforu"),
+("multimedia","Multimedya"),
+("seat","Koltuk Rahatlığı"),
+("material","İç Malzeme Kalitesi")
+] %}
+<label>{{label}} (1–10)</label>
+<input type="range" name="{{name}}" min="1" max="10" value="5"
+oninput="this.nextElementSibling.value=this.value"><output>5</output>
+{% endfor %}
+
+<br><br>
+<button type="submit">Araç Öner</button>
+</form>
+
+{% if result %}
+<hr>
+<h3>{{result.car.name}}</h3>
+<ul>
+{% for e in result.exp %}
+<li>{{e}}</li>
+{% endfor %}
+</ul>
+{% endif %}
+
+</body>
+</html>
+"""
+
+# -------------------- START --------------------
 if __name__ == "__main__":
+    init_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
