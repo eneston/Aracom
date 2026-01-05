@@ -4,6 +4,23 @@ import math
 
 app = Flask(__name__)
 DB = "cars.db"
+import sqlite3
+
+def init_db():
+    conn = sqlite3.connect("database.db")
+    c = conn.cursor()
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS cars (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        brand TEXT,
+        model TEXT,
+        price INTEGER
+    )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
 
 # ================= DATABASE =================
 def init_db():
