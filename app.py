@@ -262,4 +262,7 @@ HTML = """
 
 if __name__ == "__main__":
     init_db()
-    app.run(debug=True)
+    # Render'ın atadığı portu al, yoksa varsayılan olarak 5000 kullan
+    port = int(os.environ.get("PORT", 5000))
+    # host="0.0.0.0" Render'ın dışarıdan erişebilmesi için kritiktir
+    app.run(host="0.0.0.0", port=port)
