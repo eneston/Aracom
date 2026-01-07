@@ -3,10 +3,10 @@ from flask import Flask, request, render_template_string
 import os
 
 app = Flask(__name__)
-DB_NAME = "cars_full_system.db"
+DB_NAME = "cars.db"
 
 
-# -------------------- DATABASE (TÜM LİSTE EKSİKSİZ) --------------------
+# -------------------- DATABASE (ORİJİNAL VERİLERİN TAMAMI) --------------------
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
@@ -27,7 +27,6 @@ def init_db():
     )
     """)
 
-    # Senin verdiğin listenin tamamı (Hiçbir model çıkarılmadı)
     cars = [
         # TESLA
         ("Tesla Model 3 SR", 1600000, 510, 25, 9, 8, 9, 9, 7, 7),
@@ -105,34 +104,44 @@ def init_db():
     conn.close()
 
 
-# -------------------- SCORING (ALGORİTMA) --------------------
-def calculate_score(car, user):
-    # Kritik Filtreler
+# -------------------- SCORING (ORİJİNAL PUANLAMA MANTIĞI) --------------------
+def score(car, user):
+    explanations = []
+
+    # KRİTİK FİLTRELEME
     if car["price"] > user["price"]:
-        return None, "Bütçeniz yetersiz."
+        return None, "Bütçeniz bu araç için yetersiz."
     if car["range_km"] < user["range"]:
-        return None, "Menzili beklentinizin altında."
+        return None, "Bu aracın menzili beklentinizin altında."
 
-    score = 0
-    # Fiyat avantajı (Bütçeden kalan her 10.000 TL için 1 puan)
-    score += (user["price"] - car["price"]) / 10000
-    # Menzil avantajı (Her fazla km için 1 puan)
-    score += (car["range_km"] - user["range"])
-    # Şarj süresi (Her dakika sapma için -10 puan)
-    score -= abs(car["charge_time"] - user["charge"]) * 10
+    def closeness(label, car_val, user_val):
+        diff = abs(car_val - user_val)
+        if diff <= 1:
+            return f"• {label}: beklentine çok yakın."
+        elif diff <= 3:
+            return f"• {label}: beklentine yakın."
+        else:
+            return f"• {label}: beklentinden biraz uzak."
 
-    # Kişisel tercihler (1-10 arası özellikler)
-    attrs = ["pedal", "regen", "comfort", "multimedia", "seat", "material"]
-    for attr in attrs:
-        score += (10 - abs(car[attr] - user[attr])) * 10
+    explanations.append(closeness("Gaz pedal hassasiyeti", car["pedal"], user["pedal"]))
+    explanations.append(closeness("Rejenerasyon seviyesi", car["regen"], user["regen"]))
+    explanations.append(closeness("Sürüş konforu", car["comfort"], user["comfort"]))
 
-    return score
+    # Puanlama hesabı (Orijinal Formül)
+    total_score = 0
+    total_score += (user["price"] - car["price"]) / 10000
+    total_score += (car["range_km"] - user["range"])
+    total_score += sum(
+        10 - abs(car[k] - user[k]) for k in ["pedal", "regen", "comfort", "multimedia", "seat", "material"])
+
+    return total_score, explanations
 
 
-# -------------------- ROUTES --------------------
+# -------------------- ROUTE --------------------
 @app.route("/", methods=["GET", "POST"])
 def index():
     result = None
+
     if request.method == "POST":
         user = {
             "price": int(request.form["price"]),
@@ -153,87 +162,71 @@ def index():
 
         best_car = None
         best_score = -999999
+        best_exp = []
 
         for r in rows:
             car = dict(r)
-            s = calculate_score(car, user)
-            if s is not None and isinstance(s, (int, float)):
+            s, e = score(car, user)
+
+            if s is not None:
                 if s > best_score:
                     best_score = s
                     best_car = car
+                    best_exp = e
 
         if best_car:
-            result = {"car": best_car, "status": "success"}
+            result = {"car": best_car, "exp": best_exp, "status": "success"}
         else:
-            result = {"status": "error", "msg": "Kriterlere uygun araç bulunamadı."}
+            result = {
+                "status": "error",
+                "msg": "Kriterlerinize uygun bir araç bulunamadı. Lütfen bütçenizi artırın veya menzil beklentinizi düşürün."
+            }
 
     return render_template_string(HTML, result=result)
 
 
-# -------------------- HTML / CSS / JS --------------------
+# -------------------- HTML (TAMİR EDİLMİŞ VE MODERNİZE EDİLMİŞ) --------------------
 HTML = """
 <!DOCTYPE html>
-<html lang="tr">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>EV Bulucu - Pro</title>
+    <title>Elektrikli Araç Önerisi</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #1a1a1a; }
-        .container { max-width: 650px; margin: auto; background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-        h1 { text-align: center; color: #007bff; margin-bottom: 30px; }
-        .input-group { margin-bottom: 20px; }
-        label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
-        input[type="number"] { width: 100%; padding: 12px; border: 2px solid #e1e4e8; border-radius: 10px; font-size: 16px; outline: none; transition: 0.3s; }
-        input[type="number"]:focus { border-color: #007bff; }
+        body { font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; background: #f4f4f9; }
+        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        label { display:block; margin-top:15px; font-weight: bold; color: #333; }
+        input[type="number"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
 
-        .slider-wrapper { display: flex; align-items: center; gap: 15px; }
-        input[type="range"] { flex: 1; accent-color: #007bff; }
-        .val-badge { background: #007bff; color: white; width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; }
+        .slider-container { display: flex; align-items: center; gap: 15px; margin-top: 5px; }
+        input[type="range"] { flex-grow: 1; accent-color: #007bff; }
+        .value-display { background: #007bff; color: white; padding: 2px 10px; border-radius: 5px; min-width: 20px; text-align: center; font-weight: bold; }
 
-        button { width: 100%; background: #007bff; color: white; border: none; padding: 18px; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 30px; box-shadow: 0 5px 15px rgba(0,123,255,0.3); transition: 0.3s; }
-        button:hover { background: #0056b3; transform: translateY(-2px); }
-
-        .result { margin-top: 40px; padding: 25px; border-radius: 15px; background: #f8f9fa; border: 2px solid #007bff; }
-        .error { margin-top: 40px; padding: 25px; border-radius: 15px; background: #fff5f5; border: 2px solid #ff4d4d; color: #d63031; text-align: center; }
-        .spec-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e1e4e8; }
-        .spec-label { color: #636e72; font-weight: 500; }
-        .spec-val { font-weight: bold; color: #2d3436; }
+        button { background: #28a745; color: white; border: none; padding: 15px; border-radius: 10px; cursor: pointer; margin-top: 30px; width: 100%; font-size: 16px; font-weight: bold; }
+        .success { border-left: 5px solid #28a745; background: #f8fff9; padding: 20px; margin-top: 30px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .error { border-left: 5px solid #dc3545; background: #fce8e8; padding: 15px; margin-top: 20px; color: #dc3545; border-radius: 10px; }
+        ul { padding-left: 20px; }
+        li { list-style-type: none; margin-bottom: 5px; color: #555; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>⚡ EV Danışmanı</h1>
+    <div class="card">
+        <h2 style="text-align: center; color: #007bff;">Araç Tercihlerinizi Girin</h2>
         <form method="POST">
-            <div class="input-group">
-                <label>Maksimum Bütçe (TL)</label>
-                <input type="number" name="price" value="1800000" placeholder="Örn: 2000000" required>
-            </div>
+            <label>Maksimum Bütçe (TL)</label>
+            <input type="number" name="price" value="1500000" required>
 
-            <div class="input-group">
-                <label>Minimum Menzil (km)</label>
-                <input type="number" name="range" value="400" placeholder="Örn: 450" required>
-            </div>
+            <label>Minimum Menzil (km)</label>
+            <input type="number" name="range" value="400" required>
 
-            <div class="input-group">
-                <label>İdeal Şarj Süresi (Dakika - %10-80)</label>
-                <input type="number" name="charge" value="30" placeholder="Örn: 25" required>
-            </div>
+            <label>Maksimum Şarj Süresi (Dakika)</label>
+            <input type="number" name="charge" value="30" required>
 
-            {% for field, label in [
-                ('pedal', 'Gaz Pedal Hassasiyeti'),
-                ('regen', 'Rejenerasyon (Frenleme) Gücü'),
-                ('comfort', 'Sürüş Konforu ve Süspansiyon'),
-                ('multimedia', 'Ekran ve Yazılım Deneyimi'),
-                ('seat', 'Koltuk ve Ergonomi'),
-                ('material', 'İç Malzeme Kalitesi')
-            ] %}
-            <div class="input-group">
-                <label>{{ label }}</label>
-                <div class="slider-wrapper">
-                    <input type="range" name="{{ field }}" min="1" max="10" value="5" oninput="this.nextElementSibling.innerText = this.value">
-                    <div class="val-badge">5</div>
+            {% for name,label in [("pedal","Gaz Hassasiyeti"), ("regen","Rejenerasyon"), ("comfort","Konfor"), ("multimedia","Ekran/Yazılım"), ("seat","Koltuk"), ("material","Malzeme")] %}
+                <label>{{label}}</label>
+                <div class="slider-container">
+                    <input type="range" name="{{name}}" min="1" max="10" value="5" oninput="this.nextElementSibling.innerText = this.value">
+                    <span class="value-display">5</span>
                 </div>
-            </div>
             {% endfor %}
 
             <button type="submit">En Uygun Aracı Analiz Et</button>
@@ -241,28 +234,19 @@ HTML = """
 
         {% if result %}
             {% if result.status == "success" %}
-                <div class="result">
-                    <h2 style="margin-top:0; color:#007bff;">🎯 Önerimiz: {{ result.car.name }}</h2>
-                    <div class="spec-row">
-                        <span class="spec-label">Anahtar Teslim Fiyat:</span>
-                        <span class="spec-val">{{ "{:,}".format(result.car.price).replace(",", ".") }} TL</span>
-                    </div>
-                    <div class="spec-row">
-                        <span class="spec-label">Fabrika Menzili:</span>
-                        <span class="spec-val">{{ result.car.range_km }} km</span>
-                    </div>
-                    <div class="spec-row">
-                        <span class="spec-label">Şarj Süresi (%10-80):</span>
-                        <span class="spec-val">{{ result.car.charge_time }} dakika</span>
-                    </div>
-                    <div class="spec-row">
-                        <span class="spec-label">Konfor Puanı:</span>
-                        <span class="spec-val">{{ result.car.comfort }}/10</span>
-                    </div>
+                <div class="success">
+                    <h3 style="margin-top:0;">Sana Uygun Araç: {{ result.car.name }}</h3>
+                    <p>Bu aracı şu sebeplerden dolayı önerdik:</p>
+                    <ul>
+                        {% for e in result.exp %} <li>{{ e }}</li> {% endfor %}
+                    </ul>
+                    <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+                    <p><strong>Fiyat:</strong> {{ "{:,}".format(result.car.price).replace(",", ".") }} TL</p>
+                    <p><strong>Menzil:</strong> {{ result.car.range_km }} km | <strong>Şarj:</strong> {{ result.car.charge_time }} dk</p>
                 </div>
             {% else %}
                 <div class="error">
-                    <h3>Uyumsuzluk!</h3>
+                    <h3>Uygun Araç Bulunamadı</h3>
                     <p>{{ result.msg }}</p>
                 </div>
             {% endif %}
